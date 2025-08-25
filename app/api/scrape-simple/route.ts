@@ -49,7 +49,6 @@ export async function POST(request: NextRequest) {
       // Product names in various formats
       /<h[1-6][^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)<\/h[1-6]>/gi,
       /<h[1-6][^>]*class="[^"]*name[^"]*"[^>]*>([^<]+)<\/h[1-6]>/gi,
-      /<div[^>]*class="[^"]*product[^"]*"[^>]*>.*?<h[1-6][^>]*>([^<]+)<\/h[1-6]>/gis,
       
       // Prices
       /<span[^>]*class="[^"]*price[^"]*"[^>]*>([^<]+)<\/span>/gi,
@@ -66,7 +65,7 @@ export async function POST(request: NextRequest) {
     let brands: string[] = []
 
     // Extract names
-    for (const pattern of patterns.slice(0, 3)) {
+    for (const pattern of patterns.slice(0, 2)) {
       const matches = html.match(pattern)
       if (matches) {
         names = matches.map(match => {
@@ -78,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract prices
-    for (const pattern of patterns.slice(3, 5)) {
+    for (const pattern of patterns.slice(2, 4)) {
       const matches = html.match(pattern)
       if (matches) {
         prices = matches.map(match => {
@@ -90,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract brands
-    for (const pattern of patterns.slice(5)) {
+    for (const pattern of patterns.slice(4)) {
       const matches = html.match(pattern)
       if (matches) {
         brands = matches.map(match => {
