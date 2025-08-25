@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     // Try multiple approaches to fetch the page
     let html = ''
     let success = false
+    let blockedAttempts = 0
 
     for (let i = 0; i < userAgents.length; i++) {
       const userAgent = userAgents[i]
@@ -111,12 +112,14 @@ export async function POST(request: NextRequest) {
             break
           } else if (targetResponse.status === 403) {
             console.log(`403 error with target URL for User-Agent: ${userAgent}`)
+            blockedAttempts++
             continue
           } else {
             throw new Error(`Failed to fetch target page: ${targetResponse.status}`)
           }
         } else if (homeResponse.status === 403) {
           console.log(`403 error with homepage for User-Agent: ${userAgent}`)
+          blockedAttempts++
           continue
         } else {
           throw new Error(`Failed to fetch homepage: ${homeResponse.status}`)
@@ -128,19 +131,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (!success || !html) {
-      return NextResponse.json(
-        { 
-          error: 'Unable to access cigarpage.com. The website is actively blocking automated requests.',
-          details: 'All user agents and approaches were blocked (403 Forbidden)',
-          suggestions: [
-            'The website may have implemented advanced bot detection',
-            'Try accessing the site manually in your browser first',
-            'Consider using a different approach or contacting the website owners',
-            'This is a common issue with modern e-commerce sites'
-          ]
+      // Create a helpful CSV with information about the blocking
+      const csvContent = `Status,Message,Details,Recommendations
+Blocked,Website Access Denied,All ${blockedAttempts} attempts were blocked with 403 Forbidden errors,The website is actively blocking automated requests from Vercel servers
+Detection,Advanced Bot Protection,Multiple user agents and realistic headers were detected as automated,This suggests sophisticated bot detection beyond basic header spoofing
+Solution,Manual Access Required,The website may require manual browser access or have IP-based blocking,Consider accessing the site manually in your browser first
+Alternative,Contact Website Owners,For bulk data access, contact cigarpage.com directly,They may provide API access or data export options for legitimate business use
+Note,Common Issue,This is a common challenge with modern e-commerce sites,Many sites block server-to-server requests to prevent scraping`
+
+      return new NextResponse(csvContent, {
+        headers: {
+          'Content-Type': 'text/csv',
+          'Content-Disposition': 'attachment; filename="scraping-status.csv"',
         },
-        { status: 403 }
-      )
+      })
     }
 
     // Simple HTML parsing using regex
@@ -225,14 +229,18 @@ export async function POST(request: NextRequest) {
     }
 
     if (cigarOffers.length === 0) {
-      return NextResponse.json(
-        { 
-          error: 'No cigar offers found on this page. The page structure may have changed or the content is not accessible.',
-          suggestion: 'Try a different cigarpage.com URL or check if the page requires authentication.',
-          htmlPreview: html.substring(0, 500) + '...' // Show first 500 chars for debugging
+      // Return a CSV explaining the situation
+      const csvContent = `Status,Message,Details,HTML Preview
+No Data,Page Accessed But No Offers Found,The page was successfully loaded but no cigar offers could be extracted,${html.substring(0, 200).replace(/"/g, '""')}...
+Possible Causes,Page Structure Changed,The website may have updated their HTML structure,Check if the page layout has changed
+Alternative,Manual Review,Consider manually reviewing the page content,The HTML was received but parsing patterns need updating`
+
+      return new NextResponse(csvContent, {
+        headers: {
+          'Content-Type': 'text/csv',
+          'Content-Disposition': 'attachment; filename="parsing-results.csv"',
         },
-        { status: 404 }
-      )
+      })
     }
 
     // Generate CSV content manually
@@ -261,12 +269,17 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Scraping error:', error)
-    return NextResponse.json(
-      { 
-        error: 'Failed to scrape the page. Please try again.',
-        details: error instanceof Error ? error.message : 'Unknown error'
+    
+    // Return error information as CSV
+    const csvContent = `Status,Error,Details,Timestamp
+Error,Scraping Failed,${error instanceof Error ? error.message : 'Unknown error'},${new Date().toISOString()}
+Recommendation,Check Logs,Review server logs for detailed error information,Contact support if the issue persists`
+
+    return new NextResponse(csvContent, {
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': 'attachment; filename="error-report.csv"',
       },
-      { status: 500 }
-    )
+    })
   }
 }
