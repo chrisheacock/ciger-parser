@@ -12,6 +12,9 @@ interface CigarOffer {
   url?: string
 }
 
+// Helper function to add random delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 export async function POST(request: NextRequest) {
   try {
     const { url } = await request.json()
@@ -23,48 +26,100 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Multiple user agents to rotate and avoid detection
+    // Advanced user agents with more variety
     const userAgents = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15'
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     ]
 
     // Try multiple approaches to fetch the page
     let html = ''
     let success = false
 
-    for (const userAgent of userAgents) {
+    for (let i = 0; i < userAgents.length; i++) {
+      const userAgent = userAgents[i]
+      
       try {
-        const response = await fetch(url, {
+        // Add random delay between attempts to appear more human-like
+        if (i > 0) {
+          const delayMs = Math.floor(Math.random() * 2000) + 1000 // 1-3 seconds
+          await delay(delayMs)
+        }
+
+        // First, try to get the homepage to establish a session
+        const homeResponse = await fetch('https://www.cigarpage.com/', {
           headers: {
             'User-Agent': userAgent,
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Language': 'en-US,en;q=0.9,en;q=0.8',
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
             'Sec-Fetch-Dest': 'document',
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
             'Cache-Control': 'max-age=0',
             'DNT': '1',
-            'Referer': 'https://www.google.com/'
+            'Referer': 'https://www.google.com/',
+            'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Microsoft Edge";v="120"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"'
           },
           method: 'GET',
           redirect: 'follow'
         })
 
-        if (response.ok) {
-          html = await response.text()
-          success = true
-          break
-        } else if (response.status === 403) {
-          console.log(`403 error with User-Agent: ${userAgent}`)
+        // If homepage works, try the target URL
+        if (homeResponse.ok) {
+          console.log(`Homepage accessible with User-Agent: ${userAgent}`)
+          
+          // Small delay to simulate human browsing
+          await delay(500)
+          
+          const targetResponse = await fetch(url, {
+            headers: {
+              'User-Agent': userAgent,
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.9,en;q=0.8',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'Connection': 'keep-alive',
+              'Upgrade-Insecure-Requests': '1',
+              'Sec-Fetch-Dest': 'document',
+              'Sec-Fetch-Mode': 'navigate',
+              'Sec-Fetch-Site': 'same-origin',
+              'Sec-Fetch-User': '?1',
+              'Cache-Control': 'max-age=0',
+              'DNT': '1',
+              'Referer': 'https://www.cigarpage.com/',
+              'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Microsoft Edge";v="120"',
+              'sec-ch-ua-mobile': '?0',
+              'sec-ch-ua-platform': '"Windows"'
+            },
+            method: 'GET',
+            redirect: 'follow'
+          })
+
+          if (targetResponse.ok) {
+            html = await targetResponse.text()
+            success = true
+            console.log(`Target URL accessible with User-Agent: ${userAgent}`)
+            break
+          } else if (targetResponse.status === 403) {
+            console.log(`403 error with target URL for User-Agent: ${userAgent}`)
+            continue
+          } else {
+            throw new Error(`Failed to fetch target page: ${targetResponse.status}`)
+          }
+        } else if (homeResponse.status === 403) {
+          console.log(`403 error with homepage for User-Agent: ${userAgent}`)
           continue
         } else {
-          throw new Error(`Failed to fetch page: ${response.status}`)
+          throw new Error(`Failed to fetch homepage: ${homeResponse.status}`)
         }
       } catch (error) {
         console.log(`Error with User-Agent ${userAgent}:`, error)
@@ -75,8 +130,14 @@ export async function POST(request: NextRequest) {
     if (!success || !html) {
       return NextResponse.json(
         { 
-          error: 'Unable to access the page. The website may be blocking automated requests. Please try again later or contact support if the issue persists.',
-          details: 'All user agents were blocked (403 Forbidden)'
+          error: 'Unable to access cigarpage.com. The website is actively blocking automated requests.',
+          details: 'All user agents and approaches were blocked (403 Forbidden)',
+          suggestions: [
+            'The website may have implemented advanced bot detection',
+            'Try accessing the site manually in your browser first',
+            'Consider using a different approach or contacting the website owners',
+            'This is a common issue with modern e-commerce sites'
+          ]
         },
         { status: 403 }
       )
@@ -167,7 +228,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { 
           error: 'No cigar offers found on this page. The page structure may have changed or the content is not accessible.',
-          suggestion: 'Try a different cigarpage.com URL or check if the page requires authentication.'
+          suggestion: 'Try a different cigarpage.com URL or check if the page requires authentication.',
+          htmlPreview: html.substring(0, 500) + '...' // Show first 500 chars for debugging
         },
         { status: 404 }
       )
